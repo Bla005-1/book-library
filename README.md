@@ -3,10 +3,11 @@ CPSC 3750 - Solo Project 3
 
 url = https://cpsc.loosesocket.com
 
-Domain loosesocket.com purchased from cloudfare
-Hosted with Digital Ocean
-This is a simple webserver with nginx + php + html + mysql
-The database is a mysql server hosted on the same vps as the web server
+### Tech
+- Domain loosesocket.com purchased from cloudfare
+- Hosted with Digital Ocean
+- Simple webserver with nginx + php + html + mysql
+- The database is a mysql server hosted on the same vps as the web server
 
 ### To deploy:
 - Provision a VPS.
