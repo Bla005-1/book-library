@@ -42,7 +42,7 @@ function validate_book(array $data): array
     $errors = [];
     $clean = [];
 
-    $fields = ['title', 'author', 'genre'];
+    $fields = ['title', 'author', 'genre', 'image_url'];
     foreach ($fields as $field) {
         if (!array_key_exists($field, $data)) {
             $errors[$field] = 'Required.';

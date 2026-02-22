@@ -3,8 +3,14 @@ let editingId = null
 let currentPage = 1
 let totalPages = 1
 let totalCount = 0
-const API_URL = '/api/books.php'
-const PAGE_SIZE = 10
+let currentSort = 'desc'
+let currentSearch = ''
+let currentPageSize = 10
+let searchDebounceTimer = null
+
+const API_URL = 'api/books.php'
+const PAGE_SIZE_COOKIE = 'book_lib_page_size'
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50]
 
 const bookTableBody = document.getElementById('book-table-body')
 const bookForm = document.getElementById('book-form')
@@ -13,10 +19,14 @@ const modalOverlay = document.getElementById('modal-overlay')
 const closeModalBtn = document.getElementById('close-modal')
 const cancelBtn = document.getElementById('cancel-btn')
 const addBookBtn = document.getElementById('add-book-btn')
+const searchInput = document.getElementById('search-title')
+const sortYearBtn = document.getElementById('sort-year-btn')
+const pageSizeSelect = document.getElementById('page-size')
 
 const inputTitle = document.getElementById('title')
 const inputAuthor = document.getElementById('author')
 const inputGenre = document.getElementById('genre')
+const inputImageUrl = document.getElementById('image-url')
 const inputPages = document.getElementById('pages')
 const inputYear = document.getElementById('year')
 const inputRead = document.getElementById('read')
@@ -29,18 +39,103 @@ const prevPageBtn = document.getElementById('prev-page-btn')
 const nextPageBtn = document.getElementById('next-page-btn')
 const pageIndicator = document.getElementById('page-indicator')
 
+const DEFAULT_PLACEHOLDER_IMAGE = 'https://placehold.co/96x128?text=No+Image'
+const INLINE_FALLBACK_PLACEHOLDER =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%22128%22 viewBox=%220 0 96 128%22%3E%3Crect width=%2296%22 height=%22128%22 fill=%22%23e5e7eb%22/%3E%3Crect x=%2212%22 y=%2212%22 width=%2272%22 height=%22104%22 fill=%22%23cbd5e1%22/%3E%3Cpath d=%22M12 95l22-22 17 17 13-13 20 18v21H12z%22 fill=%22%2394a3b8%22/%3E%3Ccircle cx=%2232%22 cy=%2242%22 r=%228%22 fill=%22%2394a3b8%22/%3E%3C/svg%3E'
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function normalizeImageUrl(value) {
+  const url = String(value || '').trim()
+  return url || DEFAULT_PLACEHOLDER_IMAGE
+}
+
+function getCookie(name) {
+  const prefix = `${name}=`
+  const cookies = document.cookie ? document.cookie.split(';') : []
+
+  for (const rawCookie of cookies) {
+    const cookie = rawCookie.trim()
+    if (cookie.startsWith(prefix)) {
+      return decodeURIComponent(cookie.slice(prefix.length))
+    }
+  }
+
+  return null
+}
+
+function setCookie(name, value, days = 365) {
+  const maxAge = days * 24 * 60 * 60
+  document.cookie = `${name}=${encodeURIComponent(String(value))}; path=/; max-age=${maxAge}; samesite=lax`
+}
+
+function readSavedPageSize() {
+  const raw = getCookie(PAGE_SIZE_COOKIE)
+  if (!raw) return 10
+
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || !PAGE_SIZE_OPTIONS.includes(parsed)) {
+    return 10
+  }
+
+  return parsed
+}
+
+function updateSortButtonLabel() {
+  if (!sortYearBtn) return
+
+  if (currentSort === 'asc') {
+    sortYearBtn.textContent = 'Oldest to Newest'
+    sortYearBtn.setAttribute('aria-pressed', 'true')
+  } else {
+    sortYearBtn.textContent = 'Newest to Oldest'
+    sortYearBtn.setAttribute('aria-pressed', 'false')
+  }
+}
+
+function buildListUrl(page) {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('page_size', String(currentPageSize))
+  params.set('sort', currentSort)
+
+  if (currentSearch.trim() !== '') {
+    params.set('search', currentSearch.trim())
+  }
+
+  return `${API_URL}?${params.toString()}`
+}
+
 function renderBooks() {
   bookTableBody.innerHTML = ''
 
-  const sortedBooks = [...books].sort((a, b) => b.id - a.id)
-
-  sortedBooks.forEach((book) => {
+  books.forEach((book) => {
     const tr = document.createElement('tr')
+    const imageUrl = normalizeImageUrl(book.image_url)
+    const title = escapeHtml(book.title)
+    const author = escapeHtml(book.author)
+    const genre = escapeHtml(book.genre)
 
     tr.innerHTML = `
-      <td>${book.title}</td>
-      <td>${book.author}</td>
-      <td>${book.genre}</td>
+      <td>
+        <img
+          src="${escapeHtml(imageUrl)}"
+          alt="Cover for ${title}"
+          class="book-thumb"
+          loading="lazy"
+          onerror="if (this.dataset.fallback !== '1') { this.dataset.fallback = '1'; this.src='${INLINE_FALLBACK_PLACEHOLDER}'; }"
+        />
+      </td>
+      <td>${title}</td>
+      <td>${author}</td>
+      <td>${genre}</td>
       <td>${book.pages}</td>
       <td>${book.year}</td>
       <td>${book.read ? 'Yes' : 'No'}</td>
@@ -68,6 +163,7 @@ function renderStats(stats) {
 
 function resetForm() {
   bookForm.reset()
+  inputImageUrl.value = DEFAULT_PLACEHOLDER_IMAGE
   editingId = null
   formTitle.textContent = 'Add Book'
 }
@@ -76,6 +172,7 @@ function populateForm(book) {
   inputTitle.value = book.title
   inputAuthor.value = book.author
   inputGenre.value = book.genre
+  inputImageUrl.value = normalizeImageUrl(book.image_url)
   inputPages.value = book.pages
   inputYear.value = book.year
   inputRead.checked = book.read
@@ -100,6 +197,7 @@ function validateForm() {
   if (!inputTitle.value.trim()) return false
   if (!inputAuthor.value.trim()) return false
   if (!inputGenre.value.trim()) return false
+  if (!inputImageUrl.value.trim()) return false
 
   const pages = Number(inputPages.value)
   if (!Number.isInteger(pages) || pages <= 0) return false
@@ -113,7 +211,7 @@ function validateForm() {
 function updatePaginationControls() {
   if (!pageIndicator || !prevPageBtn || !nextPageBtn) return
 
-  pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`
+  pageIndicator.textContent = `Page ${currentPage} of ${totalPages} (${totalCount} total)`
   prevPageBtn.disabled = currentPage <= 1
   nextPageBtn.disabled = currentPage >= totalPages
 }
@@ -153,7 +251,14 @@ async function apiRequest(url, options = {}) {
   }
 
   console.log(`[API] ${config.method} ${url}`)
-  const response = await fetch(url, config)
+
+  let response = null
+  try {
+    response = await fetch(url, config)
+  } catch (err) {
+    throw new Error('Network error: unable to reach the server. Please check your connection and try again.')
+  }
+
   let payload = null
 
   try {
@@ -171,24 +276,9 @@ async function apiRequest(url, options = {}) {
 }
 
 async function fetchPage(page) {
-  const url = `${API_URL}?page=${page}`
+  const url = buildListUrl(page)
   const payload = await apiRequest(url)
   return payload
-}
-
-async function fetchAllBooks() {
-  const first = await fetchPage(1)
-  const total = typeof first.total === 'number' ? first.total : first.data.length
-  const pageSize = typeof first.page_size === 'number' ? first.page_size : PAGE_SIZE
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  let all = [...first.data]
-
-  for (let page = 2; page <= totalPages; page += 1) {
-    const payload = await fetchPage(page)
-    all = all.concat(payload.data)
-  }
-
-  return all
 }
 
 async function fetchStats() {
@@ -199,8 +289,9 @@ async function fetchStats() {
 async function loadPage(page) {
   const safePage = Math.max(1, page)
   let payload = await fetchPage(safePage)
+
   const total = typeof payload.total === 'number' ? payload.total : payload.data.length
-  const pageSize = typeof payload.page_size === 'number' ? payload.page_size : PAGE_SIZE
+  const pageSize = typeof payload.page_size === 'number' ? payload.page_size : currentPageSize
   const computedTotalPages = Math.max(1, Math.ceil(total / pageSize))
   const finalPage = Math.min(safePage, computedTotalPages)
 
@@ -209,9 +300,11 @@ async function loadPage(page) {
   }
 
   totalCount = total
-  totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  currentPageSize = pageSize
+  totalPages = Math.max(1, Math.ceil(totalCount / currentPageSize))
   currentPage = finalPage
-  books = payload.data
+  books = Array.isArray(payload.data) ? payload.data : []
+
   renderBooks()
   updatePaginationControls()
 }
@@ -221,7 +314,7 @@ async function refreshStats() {
   renderStats(stats)
 }
 
-async function refreshAfterMutation(targetPage) {
+async function refreshAfterMutation(targetPage = 1) {
   await loadPage(targetPage)
   await refreshStats()
 }
@@ -238,6 +331,7 @@ bookForm.addEventListener('submit', async (e) => {
     title: inputTitle.value.trim(),
     author: inputAuthor.value.trim(),
     genre: inputGenre.value.trim(),
+    image_url: normalizeImageUrl(inputImageUrl.value),
     pages: Number(inputPages.value),
     year: Number(inputYear.value),
     read: inputRead.checked,
@@ -255,8 +349,7 @@ bookForm.addEventListener('submit', async (e) => {
         method: 'POST',
         body: JSON.stringify(bookData),
       })
-      await loadPage(currentPage)
-      await refreshStats()
+      await refreshAfterMutation(1)
     }
 
     closeModal()
@@ -290,13 +383,11 @@ bookTableBody.addEventListener('click', async (e) => {
   }
 })
 
-// Open modal: add book
 addBookBtn.addEventListener('click', () => {
   resetForm()
   openModal('add')
 })
 
-// Close modal via buttons or overlay
 closeModalBtn.addEventListener('click', closeModal)
 cancelBtn.addEventListener('click', closeModal)
 
@@ -309,6 +400,7 @@ modalOverlay.addEventListener('click', (e) => {
 if (prevPageBtn) {
   prevPageBtn.addEventListener('click', async () => {
     if (currentPage <= 1) return
+
     try {
       await loadPage(currentPage - 1)
     } catch (err) {
@@ -320,6 +412,7 @@ if (prevPageBtn) {
 if (nextPageBtn) {
   nextPageBtn.addEventListener('click', async () => {
     if (currentPage >= totalPages) return
+
     try {
       await loadPage(currentPage + 1)
     } catch (err) {
@@ -328,12 +421,73 @@ if (nextPageBtn) {
   })
 }
 
+if (sortYearBtn) {
+  sortYearBtn.addEventListener('click', async () => {
+    currentSort = currentSort === 'desc' ? 'asc' : 'desc'
+    updateSortButtonLabel()
+
+    try {
+      await loadPage(1)
+    } catch (err) {
+      alert(err.message)
+    }
+  })
+}
+
+if (searchInput) {
+  searchInput.addEventListener('input', () => {
+    const nextSearch = searchInput.value.trim()
+
+    if (searchDebounceTimer !== null) {
+      window.clearTimeout(searchDebounceTimer)
+    }
+
+    searchDebounceTimer = window.setTimeout(async () => {
+      currentSearch = nextSearch
+
+      try {
+        await loadPage(1)
+      } catch (err) {
+        alert(err.message)
+      }
+    }, 300)
+  })
+}
+
+if (pageSizeSelect) {
+  pageSizeSelect.addEventListener('change', async () => {
+    const selected = Number(pageSizeSelect.value)
+    if (!Number.isInteger(selected) || !PAGE_SIZE_OPTIONS.includes(selected)) {
+      alert('Invalid page size selected.')
+      pageSizeSelect.value = String(currentPageSize)
+      return
+    }
+
+    currentPageSize = selected
+    setCookie(PAGE_SIZE_COOKIE, currentPageSize)
+
+    try {
+      await loadPage(1)
+    } catch (err) {
+      alert(err.message)
+    }
+  })
+}
+
 async function init() {
+  currentPageSize = readSavedPageSize()
+
+  if (pageSizeSelect) {
+    pageSizeSelect.value = String(currentPageSize)
+  }
+
+  updateSortButtonLabel()
+
   try {
     await loadPage(1)
     await refreshStats()
   } catch (err) {
-    alert('Unable to load books from the server.')
+    alert(`Unable to load books from the server. ${err.message}`)
     renderBooks()
     renderStats({
       total: totalCount,

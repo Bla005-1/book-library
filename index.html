@@ -27,20 +27,42 @@
         <h2>Library</h2>
         <button id="add-book-btn" class="primary-btn">Add Book</button>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Author</th>
-            <th>Genre</th>
-            <th>Pages</th>
-            <th>Year</th>
-            <th>Read</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="book-table-body"></tbody>
-      </table>
+      <div class="library-controls">
+        <div class="search-control">
+          <label for="search-title">Search title</label>
+          <input type="search" id="search-title" placeholder="Type a title..." />
+        </div>
+        <div class="sort-control">
+          <span>Sort by year</span>
+          <button id="sort-year-btn" class="ghost-btn" type="button" aria-pressed="false">Newest to Oldest</button>
+        </div>
+        <div class="page-size-control">
+          <label for="page-size">Page size</label>
+          <select id="page-size">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cover</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Genre</th>
+              <th>Pages</th>
+              <th>Year</th>
+              <th>Read</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="book-table-body"></tbody>
+        </table>
+      </div>
       <div class="pagination-controls">
         <button id="prev-page-btn" class="ghost-btn" type="button">Previous</button>
         <span id="page-indicator">Page 1 of 1</span>
@@ -70,6 +92,11 @@
         <div class="form-row">
           <label for="genre">Genre</label>
           <input type="text" id="genre" required />
+        </div>
+
+        <div class="form-row">
+          <label for="image-url">Image URL</label>
+          <input type="url" id="image-url" required />
         </div>
 
         <div class="form-row half">
