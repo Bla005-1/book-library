@@ -17,9 +17,9 @@ function db_connection(): mysqli
         return $conn;
     }
 
-    $host = getenv('DB_HOST') ?: '192.168.5.221';
-    $user = getenv('DB_USER') ?: 'bryce';
-    $pass = getenv('DB_PASS') ?: 'BunYyi32';
+    $host = getenv('DB_HOST') ?: '127.0.0.1';
+    $user = getenv('DB_USER') ?: '';
+    $pass = getenv('DB_PASS') ?: '';
     $name = getenv('DB_NAME') ?: 'testing';
     $port = (int) (getenv('DB_PORT') ?: '3306');
 

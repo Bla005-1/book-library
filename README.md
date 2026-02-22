@@ -1,13 +1,30 @@
 Book Library - Local Collection Manager
-CPSC 3750 - Solo Project 2
+CPSC 3750 - Solo Project 3
 
-Netlify url: https://resplendent-taiyaki-c6f46f.netlify.app/
+url = https://cpsc.loosesocket.com
 
-Backend is written in PHP.
+Domain loosesocket.com purchased from cloudfare
+Hosted with Digital Ocean
+This is a simple webserver with nginx + php + html + mysql
+The database is a mysql server hosted on the same vps as the web server
 
-MySQL Persistence: All data is stored in a MySQL table named `book_lib`. The PHP backend performs CRUD operations directly against MySQL, and the frontend does not store data locally.
+### To deploy:
+- Provision a VPS.
+- Install and configure Nginx, PHP, and MySQL.
+- Clone the repository from GitHub onto the server.
+- Configure environment variables for database access.
+- Create the MySQL database.
+- Run the provided table schema to create the book_lib table.
+- Seed the database.
+- Configure Nginx to serve the application.
+- Enable HTTPS using a valid SSL certificate.
 
-Expected table schema:
+### To updates:
+- Pull the latest changes from GitHub.
+- Restart PHP/Nginx if necessary.
+- Apply any required database schema updates.
+
+### Expected table schema:
 
 ```sql
 CREATE TABLE book_lib (
@@ -22,17 +39,7 @@ CREATE TABLE book_lib (
 );
 ```
 
-If you already have the table, run this migration once:
-
-```sql
-ALTER TABLE book_lib
-  ADD COLUMN image_url VARCHAR(1024) NOT NULL DEFAULT 'https://placehold.co/96x128?text=No+Image';
-
-UPDATE book_lib
-SET image_url = 'https://placehold.co/96x128?text=No+Image'
-WHERE image_url IS NULL OR TRIM(image_url) = '';
-```
-
+### ENV
 Backend DB connection settings are read from environment variables (with defaults):
 
 - `DB_HOST` (default `127.0.0.1`)
@@ -48,5 +55,3 @@ List API supports server-side filtering/sorting/paging:
 - `sort` values: `desc` (newest first, default) or `asc` (oldest first)
 - `search` performs partial title matching
 
-Loom video demo:
-https://www.loom.com/share/3299773740044da182ac03e08c910fe2
