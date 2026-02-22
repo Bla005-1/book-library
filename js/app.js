@@ -3,7 +3,7 @@ let editingId = null
 let currentPage = 1
 let totalPages = 1
 let totalCount = 0
-const API_URL = 'http://localhost/book-library/api/books.php'
+const API_URL = 'http://cpsc.loosesocket.com/book-library/api/books.php'
 const PAGE_SIZE = 10
 
 const bookTableBody = document.getElementById('book-table-body')
