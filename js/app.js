@@ -256,9 +256,6 @@ bookForm.addEventListener('submit', async (e) => {
         body: JSON.stringify(bookData),
       })
       await loadPage(currentPage)
-      if (currentPage < totalPages) {
-        await loadPage(totalPages)
-      }
       await refreshStats()
     }
 
